@@ -230,6 +230,16 @@ public class PdfTableReader {
             iCol = 0;
         }
 
+        // 补充一个表位置大小信息方便定位标题的可能区域
+        if(rectangles.size() > 0) {
+            Rect fistBox = rectangles.get(0);
+            Rect lastBox = rectangles.get(rectangles.size() - 1);
+            out.setRect(new Rect(
+                    fistBox.x,
+                    fistBox.y,
+                    lastBox.x + lastBox.width - fistBox.x,
+                    lastBox.y + lastBox.height - fistBox.y));
+        }
         return out;
     }
 
@@ -296,6 +306,25 @@ public class PdfTableReader {
                         for (int k = 1; k < appendNum; k++)
                             row.add(i + 1, new Rect(-k, 0, 0, 0));
                     }
+
+                    // 这格前面的格子是纵向合并的（缺失前面的格子），在前面插入几个
+                    if(mainRow.x < nowRow.x) {
+                        // 找到这个 x 在参考行的位置
+                        for (int j = 0; j < maxSizeRow.size(); j++) {
+                            if(maxSizeRow.get(j).x == nowRow.x) {
+                                for (int k = 1; k < j; k++)
+                                    row.add(i, new Rect(0, -1, 0, 0));
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // PS：先处理横向合并，方式纵向处理的机制把横向给覆盖掉了
+                for (int i = 0; i < maxSizeRow.size(); i++) {
+                    Rect mainRow = maxSizeRow.get(i);
+                    if(row.size() -1 < i) break;
+                    Rect nowRow = row.get(i);
 
                     // 这格前面的格子是纵向合并的（缺失前面的格子），在前面插入几个
                     if(mainRow.x < nowRow.x) {

@@ -1,6 +1,7 @@
 package pdftable.models;
 
 import org.apache.commons.lang3.StringEscapeUtils;
+import org.opencv.core.Rect;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,6 +39,16 @@ public class ParsedTablePage {
 
     private List<ParsedTableRow> rows;
     private int pageNum;
+
+    public Rect getRect() {
+        return rect;
+    }
+
+    public void setRect(Rect rect) {
+        this.rect = rect;
+    }
+
+    private Rect rect;
 
     private ParsedTablePage() {
         rows = new ArrayList<>();
