@@ -214,9 +214,17 @@ public class PdfTableReader {
             List<String> rowCells = new ArrayList<>();
             for (Rect col : row) {
                 String cellText = stripper.getTextForRegion(getRegionId(iRow, iCol));
+                // 特殊处理，指代格偏移；这格的内容类似 {-1, 0, 0x0}，指代这一格取偏移目标格的值。
+                if(Math.abs(col.x) == 1 || Math.abs(col.x) == 0) {
+                    try {
+                        cellText = stripper.getTextForRegion(getRegionId(iRow + col.y, iCol + col.x));
+                    } catch (Exception ignored) {}
+                }
+//                System.out.println(cellText.replace("\n", "").replace("\t", ""));
                 rowCells.add(cellText);
                 iCol++;
             }
+//            System.out.println("------------------");
             out.addRow(rowCells);
             iRow++;
             iCol = 0;
@@ -232,12 +240,81 @@ public class PdfTableReader {
      * @return list of Rectangle lists representing table rows.
      */
     private List<List<Rect>> groupRectanglesByRow(List<Rect> rectangles) {
+//        System.out.println(">>>>");
+
         List<List<Rect>> out = new ArrayList<>();
         List<Integer> rowsCoords = rectangles.stream().map(r -> r.y).distinct().collect(Collectors.toList());
         for (int rowCoords : rowsCoords) {
             List<Rect> cols = rectangles.stream().filter(r -> r.y == rowCoords).collect(Collectors.toList());
             out.add(cols);
         }
+//        System.out.print("原始数据：");
+//        System.out.println(out);
+        // 进行合并单元格处理，这里假设所有表格都是完整的 …… 不完整的爬
+        List<Rect> maxSizeRow = new ArrayList<>();
+        for (List<Rect> row : out) {
+            if (row.size() > maxSizeRow.size()) maxSizeRow = row;
+        }
+//        System.out.print("最长行：");
+//        System.out.println(maxSizeRow);
+
+        for (List<Rect> row : out) {
+            // 处理行格数少于最长行的行
+//            System.out.print("处理行：");
+//            System.out.println(row);
+            if (row.size() < maxSizeRow.size()) {
+                for (int i = 0; i < maxSizeRow.size(); i++) {
+                    Rect mainRow = maxSizeRow.get(i);
+                    if(row.size() -1 < i) break;
+                    Rect nowRow = row.get(i);
+
+                    // 删除无效格
+                    if((nowRow.width < 5 && nowRow.width > 0) || (nowRow.height < 5 && nowRow.height > 0)) {
+                        row.remove(nowRow);
+                        i--;
+                        continue;
+                    }
+
+//                    System.out.println(mainRow);
+//                    System.out.println(nowRow);
+//                    System.out.println();
+
+                    // 这格是横向合并的，在后面再插入几个
+                    if (mainRow.x == nowRow.x && mainRow.width < nowRow.width && nowRow.width > 0) {
+                        // 找到这个 x 在参考行的位置
+                        int appendNum = 0;
+                        if(i < row.size() - 1) {
+                            for (int j = 0; j < maxSizeRow.size(); j++) {
+                                int x = row.get(i + 1).x;
+                                if (maxSizeRow.get(j).x == x) {
+                                    appendNum = j - i;
+                                }
+                            }
+                        } else {
+                            appendNum = maxSizeRow.size() - i;  // 最后一格合并的情况
+                        }
+                        for (int k = 1; k < appendNum; k++)
+                            row.add(i + 1, new Rect(-k, 0, 0, 0));
+                    }
+
+                    // 这格前面的格子是纵向合并的（缺失前面的格子），在前面插入几个
+                    if(mainRow.x < nowRow.x) {
+                        // 找到这个 x 在参考行的位置
+                        for (int j = 0; j < maxSizeRow.size(); j++) {
+                            if(maxSizeRow.get(j).x == nowRow.x) {
+                                for (int k = 1; k < j; k++)
+                                    row.add(i, new Rect(0, -1, 0, 0));
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+//        System.out.println(out);
+//        System.out.println(">>>>");
+
         return out;
     }
 
